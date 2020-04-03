@@ -1,0 +1,2 @@
+13:58:08 State processor starting
+13:58:20 State processing thread ending
