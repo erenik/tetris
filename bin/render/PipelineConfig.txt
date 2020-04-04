@@ -3,15 +3,10 @@
 LoadPipeline FixedPipelinePhong
 LoadPipeline FixedPipelineNormals
 LoadPipeline FixedPipelineDiffuse
-LoadPipeline DeferredPipe
+// LoadPipeline DeferredPipe
+LoadPipeline ShadowSkyAlphaPhong
+LoadPipeline ShadowSkyAlphaPhongDeferred
+LoadPipeline ShadowSkyAlphaPhongDeferredProjectIt
 
-
+// UsePipeline ShadowSkyAlphaPhongDeferred
 UsePipeline FixedPipelinePhong
-
-
-
-
-
-
-
-

@@ -6,6 +6,8 @@
 // Don't include all managers. Ever.
 
 #include "Input/Action.h"
+#include "File/LogFile.h"
+#include <Graphics\GraphicsManager.h>
 
 /// Creates default key-bindings for the state.
 void Tetris::CreateDefaultBindings()
@@ -25,11 +27,13 @@ void Tetris::CreateDefaultBindings()
 	Bind3(Action::FromString("IgnoreMouseInput"), KEY::CTRL, KEY::I, KEY::M);
 	Bind3(Action::FromString("List cameras"), KEY::CTRL, KEY::L, KEY::C);
 
+	Bind1(Action::FromString("NewGame"), KEY::N);
 	Bind1(Action::FromString("Reset Camera"), KEY::HOME);
 	Bind1Repeat(Action::FromString("Left"), KEY::LEFT);
 	Bind1Repeat(Action::FromString("Right"), KEY::RIGHT);
 	Bind1Repeat(Action::FromString("Down"), KEY::DOWN);
 	Bind1Repeat(Action::FromString("Rotate clockwise"), KEY::CTRL);
+	Bind1Repeat(Action::FromString("Rotate clockwise"), KEY::UP);
 	Bind1Repeat(Action::FromString("Rotate counter-clockwise"), KEY::SPACE);
 
 }
@@ -38,6 +42,13 @@ void Tetris::CreateDefaultBindings()
 void Tetris::CreateUserInterface(){
 	if (ui)
 		delete ui;
+	LogMain("Creating user interface", INFO);
+
 	ui = new UserInterface();
-	ui->Load("gui/Tetris.gui");
+	bool success = ui->Load("gui/Tetris.gui");
+	if (!success)
+	{
+		LogMain("Failed to load UI", ERROR);
+		return;
+	}	
 }

@@ -1,0 +1,13 @@
+
+GetShader
+	name == name ?
+	row 110 is suspicious 
+	
+CreateShader
+RecompileShader
+
+SetActiveShader
+	row 185: activeShader?
+	row 228: Assert if not finding shader with given name?
+
+

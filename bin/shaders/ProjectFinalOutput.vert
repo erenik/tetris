@@ -1,6 +1,6 @@
 /// Author: Emil Hedemalm
-/// Date: 2012-10-29
-/// Only Diffuse + Emissive (if any)
+/// Date: 2016-08-08
+/// Made to project final results quad onto the screen or viewport
 #version 120
 
 // Uniforms

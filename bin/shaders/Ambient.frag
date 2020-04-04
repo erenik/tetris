@@ -26,7 +26,12 @@ void main(){
 	// Texture image data. This will be the base for the colors.
 	vec4 baseFrag = texture2D(baseImage, UV_Coord);
 	vec4 emissiveFrag = texture2D(emissiveMap, UV_Coord);
-	gl_FragColor = clamp(baseFrag, 0, 1);
+	
+	float alpha = baseFrag.w;
+	vec3 ambientPart = clamp(baseFrag.xyz * global_ambient.xyz, 0 ,1);
+	
+	
+	gl_FragColor = vec4(ambientPart.xyz, alpha);
 //	gl_FragColor *= primaryColorVec4;
 //	gl_FragColor *= global_ambient;	
 	

@@ -1,0 +1,67 @@
+// UI creation & parsing guide, By Emil Hedemalm 2013-03-28
+// ============================
+// <-- This is a comment
+
+/* <-- This marks the beginning of a long comment...	
+	...and this marks the end of a long comment --> */
+	
+// Set default values, these may be omitted and/or reset 
+// at any point later if wanted. See below for their usage.
+defaultAlignment 	NULL_ALIGNMENT
+defaultTexture		80Gray50Alpha.png
+defaultParent		root			
+defaultScalability	true
+defaultTextColor	1 1 1 1
+defaultPadding		0.01
+
+root							// Makes root active for manipulation, 
+// texture NULL
+// texture 	mainmenu_bg.png		// like making it cover the whole screen with a texture
+
+Element	MainScreen
+padding	0
+texture NULL
+AddTo	root
+
+parent	MainScreen
+
+/// Schwee!
+list LeftSide
+sizeRatioX 0.3
+sizeRatioY 1
+alignmentX 0.15
+padding		0.005	// Padding between elements!
+
+/// First define the two main sides of this UI!
+list RightSide
+alignmentX 	0.85
+sizeRatioX  0.3
+padding		0.005	// Padding between elements!
+
+
+// /////////////////////////////////////////////////////////
+/// Left side
+parent	LeftSide
+defaultsizeRatioY	0.1
+
+button 		NewGame
+text		"New game"
+
+integerInput Level
+text		"Level"
+
+integerInput Score
+text		"Score"
+
+integerInput HighScore
+text		"High score"
+
+button 		ToggleMusic
+text		"Toggle Music On/Off"
+
+button 		ToggleSFX
+text		"Toggle Sound On/Off"
+
+button 		Exit
+text		"Exit"
+

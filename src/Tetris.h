@@ -72,8 +72,17 @@ private:
 	/// Places. Calls CanPlace automatically unless alreadyChecked is true.
 	bool Place(TetrisBlock * block, bool alreadyChecked = false);
 
+	// Clear the field.
+	void ClearField();
+	// Set things up.
+	void NewGame();
 	/// End current game. Display stuff.
 	void GameOver();
+
+	void UpdateTimeStepMsBasedOnLevel();
+	void LevelUp(int levels = 1);
+	void AutoUpPoints();
+	void UpScore(int points);
 
 	/// Returns false if it failed due to obstruction.
 	bool MoveBrick(TetrisBrick * brick, Vector2f distance);
@@ -94,7 +103,9 @@ private:
 	List<Entity*> movingBrickParts;
 
 	int rowsCompletedTotal;
-	int score;
+	int score, highscore;
 	int timeStepMs;
+	int level;
+	int millisecondsSinceLastAutoLevelUp;
 };
 

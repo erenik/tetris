@@ -1,6 +1,6 @@
 /// Author: Emil Hedemalm
-/// Date: 2012-10-29
-/// Only Diffuse + Emissive (if any)
+/// Date: 2016-08-08
+/// Made to project final results quad onto the screen or viewport
 #version 120
 
 // Uniforms
@@ -29,7 +29,7 @@ void main(){
 	gl_FragColor = clamp(baseFrag, 0, 1);
 //	gl_FragColor *= primaryColorVec4;
 //	gl_FragColor *= global_ambient;	
-	
+//	gl_FragColor.x = 0.9;
 	// Add emissive ness
 	vec4 emissiveFactor = clamp(emissiveFrag * emissiveMapFactor, 0, 1);
 //	gl_FragColor += emissiveFactor.xyz * emissiveFactor.w;

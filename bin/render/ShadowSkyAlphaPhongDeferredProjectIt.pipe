@@ -1,0 +1,85 @@
+RenderConfig
+
+// Pipeline featuring our first shadow-mapping pass...! o.o
+Name	ShadowSkyAlphaPhongDeferredProjectIt
+
+// Fixed or Multi-pass.
+Multi-pass
+
+// Default shadow-mapping requires having at least 1 Directional light-source which casts shadows (i.e. a Sun). More advanced techniques may be explored in the future.
+RenderPass ShadowMapping
+ShadowMapping true
+ShadowMapResolution 2048
+Lights Primary
+Camera 	Light
+Shader	ShadowMappingLightPrePass
+Input	ShadowCastingEntities
+// Render to a render-buffer in order to obtain textures for lighting.
+Output ShadowMaps
+
+// Default entity-pass.
+RenderPass DeferredGatherEntities
+Shader	Deferred/DeferredGathererOut // Deferred gatherer
+Camera 	Default 
+Input	SolidEntities
+Output	DeferredGather
+
+// Default entity-pass.
+RenderPass DeferredPhongShading
+Shader	Deferred/DeferredPhongShadowsOut // Ambient, diffuse and specular shading
+Shadows true
+Camera 	Default 
+Input	DeferredGather
+Output	DeferredOutput
+
+// Or SkySphere, both work
+RenderPass SkyBox
+Shader	Deferred/AtmosphericScatteringSkyBoxOut
+SkyPass	true
+Input	SkyBox
+Clear	false // Re-use of output buffers; therefore, don't clear it.
+Output DeferredOutput
+
+// Render alpha-entities (those requiring sorting) 'n stuff.
+// RenderPass AlphaEntities
+// Optimized will try and render all alpha entities in series, disregarding their individual settings (if any). Specific groups of entities should be created to make this work well.
+// Optimized true
+// Shader Flat
+// Specifying alpha-entities will disable depth test by default for proper rendering of them.
+// Input AlphaEntities
+// Output DeferredOutput
+
+RenderPass PostProcess
+Shader	Deferred/ToneMapper
+Input DeferredOutput
+Output PostProcessOutput
+
+/// Render-pass which creates smaller versions
+RenderPass Minify
+Shader	Deferred/Copyer
+Input PostProcessOutput
+Output MinificationBuffers
+Iterations 7
+CalculateAverage
+
+RenderPass ProjectIt
+Shader ProjectFinalOutput
+Input PostProcessOutput // DeferredOutput // DeferredOutput
+Output Default
+Camera 	Default 
+
+
+EndParse
+
+
+
+
+
+
+
+
+
+
+
+
+

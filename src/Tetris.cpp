@@ -2,6 +2,8 @@
 /// 2015-01-06
 /// Our version of Tetris
 
+#include "Application/Application.h"
+
 #include "Tetris.h"
 #include "Maps/MapManager.h"
 #include "Model/ModelManager.h"
@@ -14,11 +16,17 @@
 #include "Graphics/GraphicsManager.h"
 #include "Graphics/Messages/GMCamera.h"
 #include "Graphics/Messages/GMSetEntity.h"
+#include "Graphics/Messages/GMSet.h"
+#include "Graphics/Messages/GMUI.h"
 
 #include "Input/Keys.h"
 
 #include "Message/MessageManager.h"
 #include "Message/Message.h"
+
+#include "File/LogFile.h"
+#include "StateManager.h"
+#include "Graphics/Fonts/TextFont.h"
 
 Vector2i fieldSize(10,20);
 
@@ -75,6 +83,9 @@ Tetris::Tetris()
 {
 	millisecondsPassed = 0;
 	movingBrick = NULL;
+	field = NULL;
+	highscore = 0;
+	score = 0;
 }
 
 /// Virtual destructor to discard everything appropriately.
@@ -85,22 +96,68 @@ Tetris::~Tetris()
 /// Function when entering this state, providing a pointer to the previous StateMan.
 void Tetris::OnEnter(AppState * previousState)
 {
-	// Create the field?
-	CreateField();
-	SetupCamera();
-	timeStepMs = 1000;
-	score = 0;
-	rowsCompletedTotal = 0;
+	TextFont::defaultFontSource = "img/fonts/font3.png";
+
+	if (!ui)
+		CreateUserInterface();
+	QueueGraphics(new GMSetUI((UserInterface*)ui));
+
+
+	NewGame();
 	Sleep(1000);
 }
+
+void Tetris::NewGame() {
+	// Create the field?
+	ClearField();
+	CreateField();
+	SetupCamera();
+	level = 0;
+	UpdateTimeStepMsBasedOnLevel();
+	score = 0;
+	rowsCompletedTotal = 0;
+	millisecondsSinceLastAutoLevelUp = 0;
+	QueueGraphics(new GMSetUIi("Level", GMUI::INTEGER_INPUT, level));
+	QueueGraphics(new GMSetUIi("Score", GMUI::INTEGER_INPUT, score));
+}
+
+void Tetris::UpdateTimeStepMsBasedOnLevel() {
+	timeStepMs = 500 - level * 5; // Starting off at 500ms, decreases to 450ms at level 10, 400ms at level 20, 350ms at level 30, and so on.
+}
+
+void Tetris::LevelUp(int levels) {
+	level += levels;
+	UpdateTimeStepMsBasedOnLevel();
+	QueueGraphics(new GMSetUIi("Level", GMUI::INTEGER_INPUT, level));
+}
+
+void Tetris::AutoUpPoints() {
+	// Gain level points every tick.
+	UpScore(level);
+}
+
+void Tetris::UpScore(int points) {
+	score += points;
+	QueueGraphics(new GMSetUIi("Score", GMUI::INTEGER_INPUT, score));
+}
+
 
 /// Main processing function, using provided time since last frame.
 void Tetris::Process(int timeInMs)
 {
 	millisecondsPassed += timeInMs;
+	millisecondsSinceLastAutoLevelUp += timeInMs;
+	// Auto-up level every 10 seconds.
+	if (millisecondsSinceLastAutoLevelUp > 10000) {
+		LevelUp();
+		millisecondsSinceLastAutoLevelUp = 0;
+	}
+
 	// Check time-step
 	if (movingBrick && millisecondsPassed > timeStepMs)
 	{
+		AutoUpPoints();
+
 		// Unable to move more?! o.o
 		if (!MoveBrick(movingBrick, Vector2f(0,-1)))
 		{
@@ -126,13 +183,14 @@ void Tetris::Process(int timeInMs)
 	if (movingBrick == NULL)
 	{
 		// Spawn a new brick and its segmented parts.
+		LogMain("Spawning block", INFO);
 		std::cout<<"\nSpawwwnnn";
 		Vector3f position;
 		// Create brick.
 		movingBrick = new TetrisBrick();
 		movingBrick->type = typeRand.Randi(TetrisBrick::MAX_TYPES);
 		// Place it somewhere in X, 4 units above?
-		movingBrick->position.y = fieldSize.y + 1;
+		movingBrick->position.y = fieldSize.y;
 		movingBrick->position.x = tetrisRand.Randi(fieldSize.x);
 		// Ensure it is within the accepted boundaries.
 		EnsureBrickWithinBoundaries(movingBrick);
@@ -155,18 +213,18 @@ void Tetris::Process(int timeInMs)
 void Tetris::OnExit(AppState * nextState)
 {
 	SAFE_DELETE(movingBrick);
-
-	for (int i = 0; i < fieldSize.x; ++i)
-	{
-		delete[] field[i];
-	}
-	delete[] field;
+	ClearField();
 }
 
 /// Callback function that will be triggered via the MessageManager when messages are processed.
 void Tetris::ProcessMessage(Message * message)
 {
 	String msg = message->msg;
+	if (msg.Length() > 0)
+		LogMain("Received message: " + msg, INFO);
+
+	if (msg == "NewGame")
+		NewGame();
 	if (msg == "Reset Camera")
 		SetupCamera();
 	if (msg == "Left")
@@ -177,8 +235,11 @@ void Tetris::ProcessMessage(Message * message)
 	{
 		MoveBrick(movingBrick, Vector2f(1,0));
 	}
-	else if (msg == "Down")
-		MoveBrick(movingBrick, Vector2f(0,-1));
+	else if (msg == "Down") {
+		MoveBrick(movingBrick, Vector2f(0, -1));
+		// Bonus points for speeding
+		UpScore(level * 3);
+	}
 	else if (msg == "Rotate clockwise")
 	{
 		RotateBrick(movingBrick, 1);
@@ -186,6 +247,9 @@ void Tetris::ProcessMessage(Message * message)
 	else if (msg == "Rotate counter-clockwise")
 	{
 		RotateBrick(movingBrick, -1);	
+	}
+	if (msg == "Exit") {
+		Application::live = false;
 	}
 }
 
@@ -205,15 +269,17 @@ void SetApplicationDefaults()
 	Application::name = "Tetris";
 }
 
-#include "StateManager.h"
+#include "Physics/Integrator.h"
 
 void RegisterStates()
 {
 	Tetris * tetris = new Tetris();
 	StateMan.RegisterState(tetris);
 	StateMan.QueueState(tetris);
-}
 
+	PhysicsMan.QueueMessage(new PMSet(new NoIntegrator()));
+	QueueGraphics(new GMSet(GT_RENDER_GRID, false)); // Disable debug triangle and grid.
+}
 
 void Tetris::CreateField()
 {
@@ -226,6 +292,27 @@ void Tetris::CreateField()
 			field[i][j] = NULL;
 		}
 	}
+
+	Texture * tex = NULL;
+	int color = 0xFFFF00FF;
+//	tex = TexMan.GetTextureByHex32(color); Works, yellow.
+	tex = TexMan.GetTextureBySource("img/background.png");
+	Entity* background = MapMan.CreateEntity("Background", ModelMan.GetModel("Sprite"), tex, Vector3f(fieldSize.x / 2, fieldSize.y / 2, -2));
+	QueuePhysics(new PMSetEntity(background, PT_SET_SCALE, Vector3f(40.0f, 40.0f, 1)));
+
+	// Left Wall
+	int wallColor = 0xAAAAAAAA;
+	Texture * wallTex = TexMan.GetTextureByHex32(wallColor);
+	Entity* topWall = MapMan.CreateEntity("Topwall", ModelMan.GetModel("Sprite"), wallTex, Vector3f(fieldSize.x / 2 - 0.5f, fieldSize.y, 1.0f));
+	topWall->scale = Vector3f(fieldSize.x+2, 1.0f, 1.0f);
+	Entity* bottomWall = MapMan.CreateEntity("Bottomwall", ModelMan.GetModel("Sprite"), wallTex, Vector3f(fieldSize.x / 2 - 1, -1.0f, 1.0f));
+	bottomWall->scale = Vector3f(fieldSize.x+1, 1.0f, 1.0f);
+	Entity* rightWall = MapMan.CreateEntity("Rightwall", ModelMan.GetModel("Sprite"), wallTex, Vector3f(fieldSize.x, fieldSize.y / 2 - 0.5f, 1.0f));
+	rightWall->scale = Vector3f(1.0f, fieldSize.y+2, 1.0f);
+	Entity* leftWall = MapMan.CreateEntity("Leftwall", ModelMan.GetModel("Sprite"), wallTex, Vector3f(-1.0f, fieldSize.y / 2 - 0.5f, 1.0f));
+	leftWall->scale = Vector3f(1.0f, fieldSize.y+2, 1.0f);
+	// Bottom
+	// Top
 }
 
 void Tetris::SetupCamera()
@@ -236,7 +323,7 @@ void Tetris::SetupCamera()
 	tetrisCamera->position = Vector3f(fieldSize.x * 0.5,fieldSize.y * 0.5,20);
 //	tetrisCamera->position = Vector3f();
 	tetrisCamera->projectionType = Camera::ORTHOGONAL;
-	tetrisCamera->zoom = 20.f;
+	tetrisCamera->zoom = 15.f;
 
 	GraphicsMan.QueueMessage(new GMSetCamera(tetrisCamera));
 }
@@ -282,6 +369,8 @@ void Tetris::CreateParts(TetrisBrick * brick)
 		Vector2f partLoc = partLocations[i];
 		// Create its parts.
 		Entity * brickPart = MapMan.CreateEntity("Brick-part", ModelMan.GetModel("Sprite"), tex, partLoc + brick->position);
+		brickPart->physics = new PhysicsProperty();
+		brickPart->physics->collisionsEnabled = false;
 		brickParts.Add(brickPart);
 		// Add part to brick.
 		brick->parts.Add(brickPart);
@@ -372,26 +461,31 @@ bool Tetris::Place(TetrisBlock * block, bool alreadyChecked /* = false*/)
 	return true;
 }
 
-/// End current game. Display stuff.
-void Tetris::GameOver()
-{
-	std::cout<<"\nGame over!";
-	
+void Tetris::ClearField() {
 	// Delete all entities.
 	MapMan.DeleteAllEntities();
-	for (int i = 0; i < fieldSize.x; ++i)
-	{
-		for (int j = 0; j < fieldSize.y; ++j)
+	if (field != NULL) {
+		for (int i = 0; i < fieldSize.x; ++i)
 		{
-			field[i][j] = NULL;
+			delete[] field[i];
 		}
+		delete[] field;
+		field = NULL;
 	}
 	// Delete the moving brick.
 	SAFE_DELETE(movingBrick);
+}
 
-	timeStepMs = 1000;
-	score = 0;
-	rowsCompletedTotal = 0;
+/// End current game. Display stuff.
+void Tetris::GameOver()
+{
+	LogMain("Game over!", INFO);
+
+	if (score > highscore)
+		highscore = score;
+	QueueGraphics(new GMSetUIi("HighScore", GMUI::INTEGER_INPUT, highscore));
+	ClearField();
+	NewGame();
 }
 
 /// Returns false if it failed due to obstruction.
@@ -490,17 +584,15 @@ void Tetris::EvaluateRows()
 	}
 
 	// Give score! o.o
-	score += 1000 * pow(1.5f, (float)(rowsComplete.Size() - 1));
+	UpScore((1000 + 100 * level) * pow(2.0f, (float)(rowsComplete.Size() - 1)));
+	LevelUp(rowsComplete.Size()); // Increase levels based on how many rows were completed.
 	
-	std::cout<<"\nScore: "<<score;
+	LogMain("Score "+score, INFO);
 
 	rowsCompletedTotal += rowsComplete.Size();
-	// Time step..!
-	this->timeStepMs = 1000 - rowsCompletedTotal * 10;
 
 	// Animation...! o.o ?
-	
-	Sleep(1000);
+	Sleep(500);
 
 	// Move down shit! o.o
 	// Begin with upper most row which was completed.
