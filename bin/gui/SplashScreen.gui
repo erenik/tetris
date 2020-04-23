@@ -1,0 +1,53 @@
+// UI creation & parsing guide, By Emil Hedemalm 2013-03-28
+// ============================
+// <-- This is a comment
+
+/* <-- This marks the beginning of a long comment...	
+	...and this marks the end of a long comment --> */
+	
+// Set default values, these may be omitted and/or reset 
+// at any point later if wanted. See below for their usage.
+defaultAlignment 	NULL_ALIGNMENT
+defaultTexture		80Gray50Alpha.png
+defaultParent		root			
+defaultScalability	true
+defaultTextColor	1 1 1 1
+defaultPadding		0.01
+
+root							// Makes root active for manipulation, 
+// texture NULL
+// texture 	mainmenu_bg.png		// like making it cover the whole screen with a texture
+
+Element	SplashScreen
+padding	0
+texture 0x12345655
+AddTo	root
+
+parent	SplashScreen
+
+/// Schwee!
+list SplashScreenCenterList
+texture 	0x123456
+sizeRatioX 0.5
+sizeRatioY 0.5
+alignmentXY 0.5 0.5
+padding		0.005	// Padding between elements!
+
+parent SplashScreenCenterList
+defaultsizeRatioY 		0.3
+defaultTextAlignment 	center
+
+
+label "Tetris"
+texture null
+
+defaultTexture 0x234567
+
+button StartGame
+text "Start"
+message NewGame
+
+button StartMuted
+text "Start without Audio"
+
+

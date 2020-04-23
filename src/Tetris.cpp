@@ -12,6 +12,8 @@
 #include "Physics/PhysicsManager.h"
 #include "Physics/Messages/PhysicsMessage.h"
 
+#include "Audio/Messages/AudioMessage.h"
+
 #include "Graphics/Camera/Camera.h"
 #include "Graphics/GraphicsManager.h"
 #include "Graphics/Messages/GMCamera.h"
@@ -32,6 +34,8 @@ Vector2i fieldSize(10,20);
 
 Random tetrisRand;
 Random typeRand;
+
+bool playing = false;
 
 TetrisBrick::TetrisBrick()
 {
@@ -61,7 +65,7 @@ List<Vector2f> TetrisBrick::GetLocalPartLocations()
 	return partLocs;
 }
 
-List<Vector2i> TetrisBlock::GetAbsPartLocations()
+List<Vector2i> TetrisBrick::GetAbsPartLocations()
 {
 	List<Vector2f> locLocs = GetLocalPartLocations();
 	List<Vector2i> absLocs;
@@ -86,6 +90,7 @@ Tetris::Tetris()
 	field = NULL;
 	highscore = 0;
 	score = 0;
+	playing = false;
 }
 
 /// Virtual destructor to discard everything appropriately.
@@ -101,24 +106,34 @@ void Tetris::OnEnter(AppState * previousState)
 	if (!ui)
 		CreateUserInterface();
 	QueueGraphics(new GMSetUI((UserInterface*)ui));
+	PushSplashScreen();
 
-
-	NewGame();
 	Sleep(1000);
 }
 
+void Tetris::PushSplashScreen() {
+	QueueGraphics(GMPushUI::ToUI("gui/SplashScreen.gui", ui)); // Push splash screen on top
+}
+void Tetris::HideSplashScreen() {
+	QueueGraphics(new GMPopUI("gui/SplashScreen.gui"));
+}
+
+
 void Tetris::NewGame() {
+	HideSplashScreen();
+	playing = true;
 	// Create the field?
 	ClearField();
 	CreateField();
 	SetupCamera();
-	level = 0;
+	level = 1;
 	UpdateTimeStepMsBasedOnLevel();
 	score = 0;
 	rowsCompletedTotal = 0;
 	millisecondsSinceLastAutoLevelUp = 0;
 	QueueGraphics(new GMSetUIi("Level", GMUI::INTEGER_INPUT, level));
 	QueueGraphics(new GMSetUIi("Score", GMUI::INTEGER_INPUT, score));
+	QueueAudio(new AMPlayBGM("audio/2019-11-23_Wait_and_see.ogg", 0.7f));
 }
 
 void Tetris::UpdateTimeStepMsBasedOnLevel() {
@@ -129,6 +144,10 @@ void Tetris::LevelUp(int levels) {
 	level += levels;
 	UpdateTimeStepMsBasedOnLevel();
 	QueueGraphics(new GMSetUIi("Level", GMUI::INTEGER_INPUT, level));
+	if (level >= 30) // Play next BGM 
+	{
+		QueueAudio(new AMPlayBGM("audio/2020-02-01_Second.ogg", 0.8f));
+	}
 }
 
 void Tetris::AutoUpPoints() {
@@ -142,9 +161,39 @@ void Tetris::UpScore(int points) {
 }
 
 
+void Tetris::SpawnNewBrick() {
+	// Spawn a new brick and its segmented parts.
+	LogMain("Spawning block", INFO);
+	std::cout << "\nSpawwwnnn";
+	Vector3f position;
+	// Create brick.
+	movingBrick = std::make_unique<TetrisBrick>();
+	movingBrick->type = typeRand.Randi(TetrisBrick::MAX_TYPES);
+	// Place it somewhere in X, 4 units above?
+	movingBrick->position.y = fieldSize.y;
+	movingBrick->position.x = tetrisRand.Randi(fieldSize.x);
+	// Ensure it is within the accepted boundaries.
+	EnsureBrickWithinBoundaries(movingBrick);
+	CreateParts(movingBrick);
+	// Place it.
+	bool okToPlace = CanPlace(movingBrick);
+	if (okToPlace)
+	{
+		Place(movingBrick);
+	}
+	else
+	{
+		// Game over.
+		GameOver();
+	}
+}
+
 /// Main processing function, using provided time since last frame.
 void Tetris::Process(int timeInMs)
 {
+	if (!playing)
+		return;
+
 	millisecondsPassed += timeInMs;
 	millisecondsSinceLastAutoLevelUp += timeInMs;
 	// Auto-up level every 10 seconds.
@@ -171,63 +220,61 @@ void Tetris::Process(int timeInMs)
 					return;
 				}
 			}
-			// Delete the moving brick, this will spawn a new one.
-			SAFE_DELETE(movingBrick);
 			// Evaluate rows if any was completed.
-			EvaluateRows();
+			EvaluateRows(false);
+			movingBrick = nullptr; // Request new brick by removing grip to old one.
 		}
 		millisecondsPassed -= timeStepMs;
 	}
 
-	// Spawn a brick if needed.
-	if (movingBrick == NULL)
-	{
-		// Spawn a new brick and its segmented parts.
-		LogMain("Spawning block", INFO);
-		std::cout<<"\nSpawwwnnn";
-		Vector3f position;
-		// Create brick.
-		movingBrick = new TetrisBrick();
-		movingBrick->type = typeRand.Randi(TetrisBrick::MAX_TYPES);
-		// Place it somewhere in X, 4 units above?
-		movingBrick->position.y = fieldSize.y;
-		movingBrick->position.x = tetrisRand.Randi(fieldSize.x);
-		// Ensure it is within the accepted boundaries.
-		EnsureBrickWithinBoundaries(movingBrick);
-		CreateParts(movingBrick);
-		// Place it.
-		bool okToPlace = CanPlace(movingBrick);
-		if (okToPlace)
-		{
-			Place(movingBrick);
-		}
-		else 
-		{
-			// Game over.
-			GameOver();
-		}
-	}
+	if (!movingBrick)
+		SpawnNewBrick();
 }
 
 /// Function when leaving this state, providing a pointer to the next StateMan.
 void Tetris::OnExit(AppState * nextState)
 {
-	SAFE_DELETE(movingBrick);
+	movingBrick = nullptr;
 	ClearField();
+}
+
+bool muted = false;
+
+void Tetris::UpdateMasterVolumeAndUI() {
+	LogMain("Audio set to muted: " + muted, INFO);
+	if (muted) {
+		QueueAudio(new AMSet(AT_MASTER_VOLUME, 0.0f));
+		QueueGraphics(new GMSetUIs("ToggleAudio", GMUI::TEXT, "Toggle Sound On"));
+	}
+	else {
+		QueueAudio(new AMSet(AT_MASTER_VOLUME, 1.0f));
+		QueueGraphics(new GMSetUIs("ToggleAudio", GMUI::TEXT, "Toggle Sound Off"));
+	}
 }
 
 /// Callback function that will be triggered via the MessageManager when messages are processed.
 void Tetris::ProcessMessage(Message * message)
 {
 	String msg = message->msg;
-	if (msg.Length() > 0)
-		LogMain("Received message: " + msg, INFO);
 
-	if (msg == "NewGame")
+	if (msg == "OnReloadUI") {
+		if (!playing)
+			PushSplashScreen();
+	}
+	else if (msg == "NewGame" || msg == "StartGame")
 		NewGame();
-	if (msg == "Reset Camera")
+	else if (msg == "StartMuted") {
+		NewGame();
+		muted = true;
+		UpdateMasterVolumeAndUI();
+	}
+	else if (msg == "ToggleAudio") {
+		muted = !muted;
+		UpdateMasterVolumeAndUI();
+	}
+	else if (msg == "Reset Camera")
 		SetupCamera();
-	if (msg == "Left")
+	else if (msg == "Left")
 	{
 		MoveBrick(movingBrick, Vector2f(-1,0));
 	}
@@ -236,9 +283,7 @@ void Tetris::ProcessMessage(Message * message)
 		MoveBrick(movingBrick, Vector2f(1,0));
 	}
 	else if (msg == "Down") {
-		MoveBrick(movingBrick, Vector2f(0, -1));
-		// Bonus points for speeding
-		UpScore(level * 3);
+		MoveBrick(movingBrick, Vector2f(0, -1), true);
 	}
 	else if (msg == "Rotate clockwise")
 	{
@@ -248,9 +293,12 @@ void Tetris::ProcessMessage(Message * message)
 	{
 		RotateBrick(movingBrick, -1);	
 	}
-	if (msg == "Exit") {
+	else if (msg == "Exit") {
 		Application::live = false;
 	}
+	else if (msg.Length() > 0)
+		LogMain("Received message: " + msg, INFO);
+
 }
 
 
@@ -319,6 +367,7 @@ void Tetris::SetupCamera()
 {
 	// Grab current camera, or just create own..?
 	Camera * tetrisCamera = CameraMan.NewCamera("Tetris Camera", true);
+	tetrisCamera->smoothness = 0.0f;
 	tetrisCamera->rotation = Vector3f();
 	tetrisCamera->position = Vector3f(fieldSize.x * 0.5,fieldSize.y * 0.5,20);
 //	tetrisCamera->position = Vector3f();
@@ -328,7 +377,7 @@ void Tetris::SetupCamera()
 	GraphicsMan.QueueMessage(new GMSetCamera(tetrisCamera));
 }
 
-void Tetris::EnsureBrickWithinBoundaries(TetrisBrick * brick)
+void Tetris::EnsureBrickWithinBoundaries(std::shared_ptr<TetrisBrick> brick)
 {
 	List<Vector2i> abs = movingBrick->GetAbsPartLocations();
 	for (int i = 0; i < abs.Size(); ++i)
@@ -346,7 +395,7 @@ void Tetris::EnsureBrickWithinBoundaries(TetrisBrick * brick)
 	}
 }
 
-void Tetris::CreateParts(TetrisBrick * brick)
+void Tetris::CreateParts(std::shared_ptr<TetrisBrick> brick)
 {
 	Texture * tex = NULL;
 	int color = 0xFF0000FF;
@@ -408,8 +457,11 @@ void Tetris::Unlink(List<Entity*> blockParts)
 }
 
 /// Checks if the block can be placed in the field properly. Only Y+ may go beyond the field's limits.
-bool Tetris::CanPlace(TetrisBlock * block)
+bool Tetris::CanPlace(std::shared_ptr<TetrisBrick> block)
 {
+	if (field == nullptr)
+		return false;
+
 	List<Vector2i> positions = block->GetAbsPartLocations();
 	for (int i = 0; i < positions.Size(); ++i)
 	{
@@ -428,11 +480,8 @@ bool Tetris::CanPlace(TetrisBlock * block)
 }
 
 /// Places. Calls CanPlace automatically unless alreadyChecked is true.
-bool Tetris::Place(TetrisBlock * block, bool alreadyChecked /* = false*/)
-{
-	if (!alreadyChecked)
-		assert(CanPlace(block));
-	
+bool Tetris::Place(std::shared_ptr<TetrisBrick> block)
+{	
 	List<Vector2i> absLocs = block->GetAbsPartLocations();
 	for (int i = 0; i < absLocs .Size(); ++i)
 	{
@@ -472,80 +521,90 @@ void Tetris::ClearField() {
 		delete[] field;
 		field = NULL;
 	}
-	// Delete the moving brick.
-	SAFE_DELETE(movingBrick);
+	movingBrick = nullptr; 	// Delete the moving brick (unique ptr)
 }
 
 /// End current game. Display stuff.
 void Tetris::GameOver()
 {
 	LogMain("Game over!", INFO);
+	QueueAudio(new AMPlayBGM("audio/2019-09-05_Reboot.ogg", 0.6f));
 
 	if (score > highscore)
 		highscore = score;
 	QueueGraphics(new GMSetUIi("HighScore", GMUI::INTEGER_INPUT, highscore));
-	ClearField();
-	NewGame();
+
+	playing = false;
+	PushSplashScreen();
 }
 
 /// Returns false if it failed due to obstruction.
-bool Tetris::MoveBrick(TetrisBrick * brick, Vector2f distance)
+bool Tetris::MoveBrick(std::shared_ptr<TetrisBrick> brick, Vector2f distance, bool spedUp)
 {
+	if (brick == nullptr || playing == false)
+		return true;
 	Unlink(brick->parts);
-	// Move brick?
-	TetrisBrick hypoMove = *brick;
+	// Make a copy
+	std::shared_ptr<TetrisBrick> hypoMove = std::make_shared<TetrisBrick>(*brick.get()); 
 	// Check location of brick parts if we move it down one step.
-	hypoMove.position += distance;
-	bool ok = CanPlace(&hypoMove);
+	hypoMove->position += distance;
+	bool ok = CanPlace(hypoMove);
 	if (ok)
 	{
-		Place(&hypoMove);
-		*brick = hypoMove;
+		Place(hypoMove);
+		brick->position = hypoMove->position;
+		QueueAudio(new AMPlaySFX("audio/2020-04-23_Tetris_Move_SFX.wav", 0.5f));
+		if (spedUp) 			// Bonus points for speeding
+			UpScore(level * 3);
 		return true;
 	}	
 	Place(brick);
+	if (spedUp)
+		EvaluateRows(spedUp);
 	return false;
 }
 
 
 /// Returns false if it failed due to obstruction.
-bool Tetris::RotateBrick(TetrisBrick * brick, int turnsClockwise)
+bool Tetris::RotateBrick(std::shared_ptr<TetrisBrick> brick, int turnsClockwise)
 {
+	if (brick == nullptr)
+		return false;
 	Unlink(brick->parts);
 	// Move brick?
-	TetrisBrick hypoMove = *brick;
+	std::shared_ptr<TetrisBrick> hypoMove = std::make_shared<TetrisBrick>(*brick.get());
 	// Check location of brick parts if we move it down one step.
-	hypoMove.rotation += turnsClockwise;
+	hypoMove->rotation += turnsClockwise;
 	// Round it out?
-	if (hypoMove.rotation == 4)
-		hypoMove.rotation = 0;
+	if (hypoMove->rotation == 4)
+		hypoMove->rotation = 0;
 	// Force it to be positive, between 0 and 3 (inclusive) preferably.
-	if (hypoMove.rotation < 0)
-		hypoMove.rotation += 4;
+	if (hypoMove->rotation < 0)
+		hypoMove->rotation += 4;
 	// Type-specific rotation.
 	switch(brick->type)
 	{
-		case TetrisBrick::O: hypoMove.rotation = 0; break;
+		case TetrisBrick::O: hypoMove->rotation = 0; break;
 		case TetrisBrick::I:
 		case TetrisBrick::S:
 		case TetrisBrick::Z:
 			// Clamp rotations to 0 and 1.
-			hypoMove.rotation = hypoMove.rotation % 2;
+			hypoMove->rotation = hypoMove->rotation % 2;
 			break;
 	}
 
-	bool ok = CanPlace(&hypoMove);
+	bool ok = CanPlace(hypoMove);
 	if (ok)
 	{
-		Place(&hypoMove);
-		*brick = hypoMove;
+		Place(hypoMove);
+		brick->rotation = hypoMove->rotation;
 		return true;
 	}	
 	Place(brick);
 	return false;
 }
 
-void Tetris::EvaluateRows()
+void Tetris::EvaluateRows(bool spedUp)
 {
 	List<int> rowsComplete;
 	for (int y = 0; y < fieldSize.y; ++y)
@@ -572,6 +631,9 @@ void Tetris::EvaluateRows()
 	if (rowsComplete.Size() == 0)
 		return;
 	
+	// Row complete, remove grip to moving brick to prevent any bugs since it shouldn't move any more.
+	movingBrick = nullptr;
+
 	// Kill rows! o.o
 	for (int i = 0; i < rowsComplete.Size(); ++i)
 	{
@@ -583,6 +645,9 @@ void Tetris::EvaluateRows()
 		}
 	}
 
+	QueueAudio(new AMPlaySFX("audio/2020-04-23_Tetris_RowClear_SFX.wav", 0.5f + rowsComplete.Size() * 0.1f));// Volume from 0.6 to 0.9 (1-4 rows)
+
+
 	// Give score! o.o
 	UpScore((1000 + 100 * level) * pow(2.0f, (float)(rowsComplete.Size() - 1)));
 	LevelUp(rowsComplete.Size()); // Increase levels based on how many rows were completed.
@@ -592,7 +657,10 @@ void Tetris::EvaluateRows()
 	rowsCompletedTotal += rowsComplete.Size();
 
 	// Animation...! o.o ?
-	Sleep(500);
+	if (spedUp)
+		Sleep(50);
+	else 
+		Sleep(500);
 
 	// Move down shit! o.o
 	// Begin with upper most row which was completed.

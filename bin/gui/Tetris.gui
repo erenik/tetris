@@ -24,6 +24,7 @@ texture NULL
 AddTo	root
 
 parent	MainScreen
+defaultTexture 0x123456
 
 /// Schwee!
 list LeftSide
@@ -32,11 +33,11 @@ sizeRatioY 1
 alignmentX 0.15
 padding		0.005	// Padding between elements!
 
-/// First define the two main sides of this UI!
 list RightSide
 alignmentX 	0.85
 sizeRatioX  0.3
-padding		0.005	// Padding between elements!
+padding		0.0	// Padding between elements!
+
 
 
 // /////////////////////////////////////////////////////////
@@ -45,23 +46,37 @@ parent	LeftSide
 defaultsizeRatioY	0.1
 
 button 		NewGame
+texture 0x234567
 text		"New game"
 
-integerInput Level
+IntegerLabel Level
 text		"Level"
 
-integerInput Score
+IntegerLabel Score
 text		"Score"
 
-integerInput HighScore
+IntegerLabel HighScore
 text		"High score"
 
-button 		ToggleMusic
-text		"Toggle Music On/Off"
-
-button 		ToggleSFX
-text		"Toggle Sound On/Off"
+button 		ToggleAudio
+texture 0x234567
+text		"Toggle Sound Off"
 
 button 		Exit
+texture 0x234567
 text		"Exit"
+
+// Right Side 
+parent	MainScreen
+
+parent RightSide
+defaultSizeRatioY 0.08
+
+label Controls
+label "Arrow Left - Move Left"
+label "Arrow Right - Move Right"
+label "Arrow Down - Move Down"
+label "Arrow Up - Rotate block"
+label "Arrow Left - Move Left"
+label "N - New game"
 

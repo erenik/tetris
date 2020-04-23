@@ -4,7 +4,6 @@
 
 #include "AppStates/AppState.h"
 
-#define TetrisBlock TetrisBrick
 class TetrisBrick 
 {
 public:
@@ -58,19 +57,24 @@ public:
 	
 private:
 
+	void SpawnNewBrick();
+	void UpdateMasterVolumeAndUI();
+	void PushSplashScreen();
+	void HideSplashScreen();
+
 	void CreateField();
 	void SetupCamera();
 
 	
-	void EnsureBrickWithinBoundaries(TetrisBrick * brick);
-	void CreateParts(TetrisBrick * forBrick);
+	void EnsureBrickWithinBoundaries(std::shared_ptr<TetrisBrick> brick);
+	void CreateParts(std::shared_ptr<TetrisBrick> forBrick);
 
 	/// Unlinks block parts from the field, used before movements.
 	void Unlink(List<Entity*> blockParts);
 	/// Checks if the block can be placed in the field properly. Only Y+ may go beyond the field's limits.
-	bool CanPlace(TetrisBlock * block);
+	bool CanPlace(std::shared_ptr<TetrisBrick> block);
 	/// Places. Calls CanPlace automatically unless alreadyChecked is true.
-	bool Place(TetrisBlock * block, bool alreadyChecked = false);
+	bool Place(std::shared_ptr<TetrisBrick> block);
 
 	// Clear the field.
 	void ClearField();
@@ -85,12 +89,12 @@ private:
 	void UpScore(int points);
 
 	/// Returns false if it failed due to obstruction.
-	bool MoveBrick(TetrisBrick * brick, Vector2f distance);
+	bool MoveBrick(std::shared_ptr<TetrisBrick> brick, Vector2f distance, bool applyBonusSinceSpedUp = false);
 	/// Returns false if it failed due to obstruction.
-	bool RotateBrick(TetrisBrick * brick, int turnsClockwise);
+	bool RotateBrick(std::shared_ptr<TetrisBrick> brick, int turnsClockwise);
 
 	// Evaluate rows if any was completed.
-	void EvaluateRows();
+	void EvaluateRows(bool spedUp);
 
 
 	int millisecondsPassed;
@@ -99,7 +103,7 @@ private:
 	// All brick-parts on the field!
 	List<Entity*> brickParts;
 
-	TetrisBrick * movingBrick;
+	std::shared_ptr<TetrisBrick> movingBrick;
 	List<Entity*> movingBrickParts;
 
 	int rowsCompletedTotal;
